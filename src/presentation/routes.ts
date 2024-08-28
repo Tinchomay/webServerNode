@@ -1,6 +1,5 @@
 //El router es una funcion que vamos a poder mandar a nuestro servidor como un middleware
 import { Router } from "express";
-import { TodoController } from './todos/controller';
 import { TodoRoutes } from "./todos/routes";
 
 export class AppRoutes {

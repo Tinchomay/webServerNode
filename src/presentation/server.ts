@@ -37,10 +37,11 @@ export class Server {
         //Ayuda a los SPA
         //Aqui indicamos con el * que todas las rutas que sean get van a ser redirigidas al index html
         this.app.get('*', (req, res) => {
-            const indexPath = path.join(__dirname, `../../${this.publicPath}/index.html`);
+            const indexPath = path.join(__dirname + `../../../${this.publicPath}/index.html`);
             res.sendFile(indexPath);
             return
         });
+        
         this.app.listen(this.port, () => {
             console.log(`Server running on port ${this.port}`)
         })

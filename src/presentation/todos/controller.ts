@@ -1,21 +1,18 @@
 import { Request, Response } from "express"
 import { request } from "http"
-
-let todos = [
-    {id: 1, text: 'Buy milk', createdAt: new Date},
-    {id: 2, text: 'Buy cereal', createdAt: new Date},
-    {id: 3, text: 'Buy chocolate', createdAt: new Date},
-]
+import { prisma } from "../../data/postgres"
+import { CreateTodoDto, UpdateTodoDto } from "../../domain/dtos";
 
 export class TodoController {
     //Vamos a inyectar dependencias
     constructor(){};
 
-    public getTodos = (req : Request, resp: Response) => {
-        return resp.json(todos)
+    public getTodos = async (req : Request, resp: Response) => {
+        const todos = await prisma.todo.findMany();
+        return resp.json(todos);
     }
 
-    public getTodoById = (req : Request, resp: Response) => {
+    public getTodoById = async (req : Request, resp: Response) => {
         //Agregando el simbolo mas "+" de donde obtenemos el id lo convertira en un numero, y si es un texto se convertira en null
         //Obtenemos el parametro id que definimos en la ruta
         const id = + req.params.id;
@@ -23,61 +20,65 @@ export class TodoController {
         //Si no es un nuermo retornamos un error de mala informacion
         if(isNaN(id)) return resp.status(400).json({error: `El id no es un numero` })
 
-        const todo = todos.find(todo => todo.id === id);
-        //Si existe todo retornamos sus valores como un json si no vamos a retornar un 404 para que caiga en una excepcion 
+        const todo = await prisma.todo.findFirst({
+            where: {
+                id
+            }
+        });
         (todo) 
             ? resp.json(todo)
             : resp.status(404).json('No encontrado');
     }
 
-    public createTodo = (req : Request, resp : Response) => {
-        //De todo lo que se envia solo vamos a extraer el text
-        const { text } = req.body;
-        //Si no existe el text arrojar un error
-        if(!text) return resp.status(400).json({error: 'Falta el texto'})
-        //Creamos un objeto como queramos y lo agregamos
-        const newTodo = ({
-            id: todos.length + 1,
-            text,
-            createdAt: new Date
-        })
-        todos.push(newTodo);
-        //retornamos respuesta
-        resp.send(newTodo);
+    public createTodo = async (req : Request, resp : Response) => {
+        //Extraemos el string o la instancia
+        const [error, createTodoDto] = CreateTodoDto.create(req.body)
+        //Si hay error retornamos un 404 con el error
+        if(error) return resp.status(404).json({error})
+        //Si llegamos a este punto no hay error y utilizamos el signo ! para decirle a TS que si esta presente el valor
+        const todo = await prisma.todo.create({
+            data: createTodoDto!
+        });
+
+        resp.send(todo);
     }
 
-    public updateTodo = (req : Request, resp : Response) => {
+    public updateTodo = async (req : Request, resp : Response) => {
         const id = + req.params.id;
-        if(isNaN(id)) return resp.status(400).json({error: `El id no es un numero` })
-        
-        const todo = todos.find(todo => todo.id === id);
+        const [error, updateTodoDto] = UpdateTodoDto.update({
+            ...req.body,
+            id
+        })
+        if(error) return resp.status(404).json({error})
+        const todo = await prisma.todo.findUnique({
+            where: {id}
+        })
         if(!todo) return resp.status(404).json(`El id ${id} no fue encontrado`);
-        
-        const { text, createdAt } = req.body;
-        if(!text) return resp.status(400).json({error: 'Falta el texto'});
-
-        todo.text = text || todo.text;
-        (createdAt)
-            ? todo.createdAt = createdAt
-            : null
-
-        //!OJO, referencia
-
-        return resp.json(todo)
-
+        const newTodo = await prisma.todo.update({
+            where: {
+                id
+            },
+            //Aqui utilizamos el metodo que asigna los valores al objeto de retorno porque ya hay una instancia
+            data: updateTodoDto!.values
+        })
+        return resp.json(newTodo)
     }
     
-    public deleteTodo = (req : Request, resp : Response) => {
+    public deleteTodo = async (req : Request, resp : Response) => {
         const id = + req.params.id;
         if(isNaN(id)) return resp.status(400).json({error: `El id no es un numero` });
-
-        const todo = todos.find(todo => todo.id === id);
+        const todo = await prisma.todo.findUnique({
+            where: {
+                id
+            }
+        })
         if(!todo) return resp.status(404).json(`El id ${id} no fue encontrado`);
-
-        //indexof busca el indice en el array donde se encuentre todo, si no lo encuentra devuelve -1. El 1 de splice elimina un elemento a partir del indice dado, aqui solo elimina un elemento
-        todos.splice(todos.indexOf(todo), 1);
-
-        resp.json(todo);
+        const todoDeleted = await prisma.todo.delete({
+            where: {
+                id
+            }
+        })
+        resp.json({todo, todoDeleted});
 
     }
 }
