@@ -1,84 +1,61 @@
 import { Request, Response } from "express"
-import { request } from "http"
-import { prisma } from "../../data/postgres"
 import { CreateTodoDto, UpdateTodoDto } from "../../domain/dtos";
+import { CreateTodo, DeleteTodo, GetAllTodo, GetByIdTodo, TodoRepository, UpdateTodo } from "../../domain";
+
 
 export class TodoController {
-    //Vamos a inyectar dependencias
-    constructor(){};
+    constructor(
+        private readonly todoRepository : TodoRepository
+    ){};
 
-    public getTodos = async (req : Request, resp: Response) => {
-        const todos = await prisma.todo.findMany();
-        return resp.json(todos);
+    public getTodos = (req : Request, resp: Response) => {
+        new GetAllTodo(this.todoRepository).execute()
+            //Con el then obtenemos los todos es como si hicieramos un await en a la constante todos
+            .then((todos) => {
+                resp.json(todos)
+                //Aqui atrapamos un error si no funciona el then 
+            }).catch((err) => {
+                resp.status(400).json({err})
+            });
     }
 
-    public getTodoById = async (req : Request, resp: Response) => {
+    public getTodoById = (req : Request, resp: Response) => {
         //Agregando el simbolo mas "+" de donde obtenemos el id lo convertira en un numero, y si es un texto se convertira en null
         //Obtenemos el parametro id que definimos en la ruta
         const id = + req.params.id;
 
-        //Si no es un nuermo retornamos un error de mala informacion
-        if(isNaN(id)) return resp.status(400).json({error: `El id no es un numero` })
-
-        const todo = await prisma.todo.findFirst({
-            where: {
-                id
-            }
-        });
-        (todo) 
-            ? resp.json(todo)
-            : resp.status(404).json('No encontrado');
+        new GetByIdTodo(this.todoRepository).execute(id)
+            .then(todo => resp.json(todo))
+            .catch(err => resp.status(400).json({err}));
     }
 
-    public createTodo = async (req : Request, resp : Response) => {
+    public createTodo = (req : Request, resp : Response) => {
         //Extraemos el string o la instancia
         const [error, createTodoDto] = CreateTodoDto.create(req.body)
         //Si hay error retornamos un 404 con el error
         if(error) return resp.status(404).json({error})
-        //Si llegamos a este punto no hay error y utilizamos el signo ! para decirle a TS que si esta presente el valor
-        const todo = await prisma.todo.create({
-            data: createTodoDto!
-        });
 
-        resp.send(todo);
+        new CreateTodo(this.todoRepository).execute(createTodoDto!)
+            .then(todo => resp.json(todo))
+            .catch(err => resp.status(400).json({err}));
+
     }
 
-    public updateTodo = async (req : Request, resp : Response) => {
+    public updateTodo = (req : Request, resp : Response) => {
         const id = + req.params.id;
-        const [error, updateTodoDto] = UpdateTodoDto.update({
-            ...req.body,
-            id
-        })
+        //Aqui reemplazamos si hay algun id en el body por el que se esta mandando como parametro a la url
+        const [error, updateTodoDto] = UpdateTodoDto.update({...req.body, id})
         if(error) return resp.status(404).json({error})
-        const todo = await prisma.todo.findUnique({
-            where: {id}
-        })
-        if(!todo) return resp.status(404).json(`El id ${id} no fue encontrado`);
-        const newTodo = await prisma.todo.update({
-            where: {
-                id
-            },
-            //Aqui utilizamos el metodo que asigna los valores al objeto de retorno porque ya hay una instancia
-            data: updateTodoDto!.values
-        })
-        return resp.json(newTodo)
+        new UpdateTodo(this.todoRepository).execute(updateTodoDto!)
+            .then(todo => resp.json(todo))
+            .catch(err => resp.status(400).json({err}));
     }
     
-    public deleteTodo = async (req : Request, resp : Response) => {
+    public deleteTodo = (req : Request, resp : Response) => {
         const id = + req.params.id;
         if(isNaN(id)) return resp.status(400).json({error: `El id no es un numero` });
-        const todo = await prisma.todo.findUnique({
-            where: {
-                id
-            }
-        })
-        if(!todo) return resp.status(404).json(`El id ${id} no fue encontrado`);
-        const todoDeleted = await prisma.todo.delete({
-            where: {
-                id
-            }
-        })
-        resp.json({todo, todoDeleted});
-
+        new DeleteTodo(this.todoRepository).execute(id)
+            .then(todo => resp.json(todo))
+            .catch(err => resp.status(400).json({err}));
     }
 }

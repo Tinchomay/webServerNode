@@ -1,11 +1,15 @@
 import { Router } from "express";
 import { TodoController } from "./controller";
+import { TodoRepositoryImpl } from "../../infraestructure/repositories/todo.repository.impl";
+import { TodoDataSourceImpl } from "../../infraestructure/datasource/todo.datasource.impl";
 
 //Esta sera la clase que controle todas las rutas de todo, basicamente suma las rutas a donde se utilizan
 export class TodoRoutes {
     static get routes(): Router {
         const router = Router();
-        const todoController = new TodoController();
+
+        const dataSource = new TodoRepositoryImpl( new TodoDataSourceImpl());
+        const todoController = new TodoController(dataSource);
 
         //Podemos mandar el req y la resp al controlador en el segundo parametro
         // router.get('/api/todos', (req, resp) => todoController.getTodos(req, resp));
